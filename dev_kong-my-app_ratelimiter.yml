@@ -1,0 +1,11 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rate-limiting-myapp
+config:
+  hour: 10
+  #minute: 10
+  limit_by: header
+  header_name: 'x-kong-jwt-claim-firstname'
+  policy: local
+plugin: rate-limiting

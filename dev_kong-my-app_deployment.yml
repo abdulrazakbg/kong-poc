@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-my-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: kong-my-app
+  template:
+    metadata:
+      labels:
+        run: kong-my-app
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: kong-my-app
+        image: razakcbe/kong-my-app:latest
+        imagePullPolicy: Always
+        env:
+        - name: SPRING_PROFILE
+          value: "local"
+  strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 25%
+        maxSurge: 25%
+        
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-my-app
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    run: kong-my-app
+spec:
+  type: NodePort
+  ports:
+  - nodePort: 31687
+    port: 8200
+    protocol: TCP
+  selector:
+    run: kong-my-app

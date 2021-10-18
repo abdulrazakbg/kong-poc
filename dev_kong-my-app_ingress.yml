@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    kubernetes.io/ingress.class: kong
+    #konghq.com/plugins: rate-limiting-myapp
+spec:
+  rules:
+  - http:
+      paths:
+      - pathType: ImplementationSpecific
+        path: /my-app
+        backend:
+          service:
+            name: kong-my-app
+            port:
+              number: 8200

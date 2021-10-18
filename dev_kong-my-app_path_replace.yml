@@ -1,0 +1,8 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: my-kong-plugin-url-replace
+config:
+  search_string: '/maps'
+  replace_string: '/'
+plugin: url-replace
