@@ -1163,6 +1163,26 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: kong-admin
+  namespace: kong
+spec:
+  type: NodePort
+  ports:
+  - name: admin
+    port: 8001
+    protocol: TCP
+    targetPort: 8001
+  - name: admin-ssl
+    port: 8444
+    targetPort: 8444
+    protocol: TCP
+  selector:
+    app: ingress-kong
+# type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: kong-validation-webhook
   namespace: kong
 spec:
@@ -1221,7 +1241,7 @@ spec:
         - name: KONG_PORT_MAPS
           value: 80:8000, 443:8443
         - name: KONG_ADMIN_LISTEN
-          value: 127.0.0.1:8444 ssl
+          value: 0.0.0.0:8001,0.0.0.0:8444 ssl
         - name: KONG_STATUS_LISTEN
           value: 0.0.0.0:8100
         - name: KONG_NGINX_WORKER_PROCESSES
@@ -1232,7 +1252,7 @@ spec:
           value: /dev/stderr
         - name: KONG_PROXY_ERROR_LOG
           value: /dev/stderr
-        image: kong:2.5
+        image: razakcbe/kong-bg:latest
         lifecycle:
           preStop:
             exec:
@@ -1261,6 +1281,12 @@ spec:
         - containerPort: 8100
           name: metrics
           protocol: TCP
+        - containerPort: 8001
+          name: admin
+          protocol: TCP
+        - containerPort: 8444
+          name: admin-ssl
+          protocol: TCP 
         readinessProbe:
           failureThreshold: 3
           httpGet:
@@ -1273,7 +1299,7 @@ spec:
           timeoutSeconds: 1
       - env:
         - name: CONTROLLER_KONG_ADMIN_URL
-          value: https://127.0.0.1:8444
+          value: http://127.0.0.1:8001
         - name: CONTROLLER_KONG_ADMIN_TLS_SKIP_VERIFY
           value: "true"
         - name: CONTROLLER_PUBLISH_SERVICE
@@ -1329,7 +1355,7 @@ spec:
           value: postgres
         - name: KONG_PG_PASSWORD
           value: kong
-        image: kong:2.5
+        image: razakcbe/kong-bg:latest
         name: wait-for-migrations
       serviceAccountName: kong-serviceaccount
 ---
@@ -1400,7 +1426,7 @@ spec:
           value: postgres
         - name: KONG_PG_PORT
           value: "5432"
-        image: kong:2.5
+        image: razakcbe/kong-bg:latest
         name: kong-migrations
       initContainers:
       - command:
@@ -1416,3 +1442,86 @@ spec:
         image: busybox
         name: wait-for-postgres
       restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    run: konga
+  name: konga-svc
+  namespace: kong
+spec:
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 1337
+  selector:
+    run: konga
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  name: konga
+  namespace: kong
+spec:
+  rules:
+  - http:
+      paths:
+      - pathType: ImplementationSpecific
+        path: /
+        backend:
+          service:
+            name: konga-svc
+            port:
+              number: 443
+    host: konga.mydomain.com
+  tls:
+    - hosts:
+      - konga.mydomain.com
+      secretName: konga-mydomain-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: konga
+  namespace: kong
+spec: 
+  replicas: 1
+  selector: 
+    matchLabels: 
+      run: konga
+  template: 
+    metadata: 
+      labels: 
+        run: konga
+    spec: 
+      containers: 
+        - 
+          env: 
+            - 
+              name: DB_ADAPTER
+              value: postgres
+            - 
+              name: DB_HOST
+              value: postgres
+            - 
+              name: DB_USER
+              value: kong
+            - 
+              name: DB_PASSWORD
+              value: kong
+            - 
+              name: DB_DATABASE
+              value: kong
+            - 
+              name: TOKEN_SECRET
+              value: mysecretkong
+          image: pantsel/konga
+          name: konga
+          ports: 
+            - 
+              containerPort: 1337
+              protocol: TCP
